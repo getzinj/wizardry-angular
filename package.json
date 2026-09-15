@@ -1,0 +1,40 @@
+{
+  "name": "wizardry-angular",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": "^24.15.0 || >=26.0.0"
+  },
+  "scripts": {
+    "start": "ng serve",
+    "build": "ng build",
+    "build-dev": "ng build --configuration development",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "inspect-dsk": "jiti tools/inspect-dsk.ts"
+  },
+  "dependencies": {
+    "@angular/animations": "22.1.5",
+    "@angular/common": "22.1.5",
+    "@angular/compiler": "22.1.5",
+    "@angular/core": "22.1.5",
+    "@angular/platform-browser": "22.1.5",
+    "rxjs": "~7.8.2",
+    "tslib": "^2.8.1"
+  },
+  "devDependencies": {
+    "@analogjs/vite-plugin-angular": "2.6.4",
+    "@analogjs/vitest-angular": "2.6.4",
+    "@angular/build": "22.1.7",
+    "@angular/cli": "22.1.7",
+    "@angular/compiler-cli": "22.1.5",
+    "@angular/language-service": "22.1.5",
+    "@types/node": "~24.13.3",
+    "@vitest/coverage-v8": "4.1.11",
+    "jiti": "2.7.0",
+    "jsdom": "30.0.1",
+    "typescript": "~6.0.3",
+    "vite": "8.2.1",
+    "vitest": "4.1.11"
+  }
+}

@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+coverage/
+tmp/
+tools/out/
+.angular/
+
+# Original game data - never commit disk images or anything extracted from them
+*.dsk
+*.DSK
+*.po
+src/assets/local/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
