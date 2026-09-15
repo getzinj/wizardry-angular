@@ -11,7 +11,7 @@
 import { Zone, character, scenarioToc } from '../data/layout/wiz-types';
 import type { ICharacter } from '../data/layout/wiz-types';
 import { exit, withExit } from '../runtime/pascal-exit';
-import { disk } from '../runtime/runtime';
+import { getrec, putrec } from './diskio';
 import { aastraa, campvar, castspel, clrobjids, dropitem, dspitems, dspspels, useitem } from './camp';
 import {
   CRETURN, Tattrib, Tclass, Tstatus, Xgoto, g,
@@ -161,7 +161,7 @@ async function dotrade(): Promise<void> {
         }
 
         giving.count = giving.count - 1;
-        dspitems();
+        await dspitems();
       }
     }
 
@@ -186,14 +186,14 @@ async function campdo(): Promise<void> {
   await withExit('CAMPDO', async (): Promise<void> => {
     let menutype: number = 0;
 
-    function campmenu(): void {
+    async function campmenu(): Promise<void> {
       const who: ICharacter = g.charactr[campvar.campchar];
 
       /**
        * DSPSTATS. The sheet. Six attributes down the left, gold, experience, level, age, hit points,
        * armour class and status down the right, then the spell counts and what they are carrying.
        */
-      function dspstats(): void {
+      async function dspstats(): Promise<void> {
         /** CHEVRONS. The honours, as marks between quotes: one per bit of the fourth lost word. */
         function chevrons(): void {
           const lostxyl4: number = who.lostLocation[3];
@@ -249,11 +249,11 @@ async function campdo(): Promise<void> {
 
         writeln();
         dspspels();
-        dspitems();
+        await dspitems();
       }
 
       if (campvar.dispstat) {
-        dspstats();
+        await dspstats();
       }
 
       gotoxy(0, 18);
@@ -290,7 +290,7 @@ async function campdo(): Promise<void> {
       }
     }
 
-    campmenu();
+    await campmenu();
     campvar.dispstat = true;
 
     do {
@@ -466,10 +466,10 @@ async function disband(): Promise<void> {
       who.lostLocation[1] = g.mazey;
       who.lostLocation[2] = g.mazelev;
       who.age = who.age + 25;
-      disk().write(Zone.character, g.chardisk[g.llbase04], character, who);
+      await putrec(Zone.character, g.chardisk[g.llbase04], character, who);
     }
 
-    g.scntoc = disk().read(Zone.toc, 0, scenarioToc);
+    g.scntoc = await getrec(Zone.toc, 0, scenarioToc);
     g.llbase04 = -2;
     g.xgoto = Xgoto.xscnmsg;
     exit('CAMP');

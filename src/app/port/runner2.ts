@@ -10,8 +10,9 @@
 
 import { MAZE_SIZE, SquareKind, Wall, Zone, maze } from '../data/layout/wiz-types';
 import type { ICharacter, IMaze } from '../data/layout/wiz-types';
-import { exit, withExit, withExitSync } from '../runtime/pascal-exit';
-import { disk, rt } from '../runtime/runtime';
+import { exit, withExit } from '../runtime/pascal-exit';
+import { rt } from '../runtime/runtime';
+import { getrec, putrec } from './diskio';
 import { drawmaze } from './runner';
 import { CRETURN, Direction, Tattrib, Tstatus, Xgoto, g } from './wiz';
 import {
@@ -29,8 +30,8 @@ const KICK_KEY: number = 75;
 
 
 /** READMAZE. */
-function readmaze(): void {
-  mazelevel = disk().read(Zone.maze, g.mazelev - 1, maze);
+async function readmaze(): Promise<void> {
+  mazelevel = await getrec(Zone.maze, g.mazelev - 1, maze);
 }
 
 
@@ -285,8 +286,8 @@ async function runmain(): Promise<void> {
     }
 
     /** CHENCOUN. A fixed encounter, which is used up once it has been fought. */
-    function chencoun(): void {
-      withExitSync('CHENCOUN', (): void => {
+    async function chencoun(): Promise<void> {
+      await withExit('CHENCOUN', async (): Promise<void> => {
         if (mazelevel.argument0[sqtype] === 0) {
           exit('CHENCOUN');
         }
@@ -313,7 +314,7 @@ async function runmain(): Promise<void> {
             mazelevel.squareKind[sqtype] = SquareKind.normal;
           }
 
-          disk().write(Zone.maze, g.mazelev - 1, maze, mazelevel);
+          await putrec(Zone.maze, g.mazelev - 1, maze, mazelevel);
         }
 
         exit('RUNNER');
@@ -417,7 +418,7 @@ async function runmain(): Promise<void> {
         break;
 
       case SquareKind.encounter:
-        chencoun();
+        await chencoun();
         break;
 
       default:
@@ -683,7 +684,7 @@ function encountr(): void {
 export async function runner(): Promise<void> {
   await withExit('RUNNER', async (): Promise<void> => {
     quickplt = false;
-    readmaze();
+    await readmaze();
     clroomfg(g.mazex, g.mazey);
 
     for (;;) {

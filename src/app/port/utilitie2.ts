@@ -13,7 +13,7 @@
 import { Zone, object } from '../data/layout/wiz-types';
 import type { ICharacter, IObject } from '../data/layout/wiz-types';
 import { exit, withExit } from '../runtime/pascal-exit';
-import { disk } from '../runtime/runtime';
+import { getrec } from './diskio';
 import type { ITwizlong } from './wiz';
 import { CRETURN, Talign, Tattrib, Tclass, Tobjtype, Trace, Tstatus, Xgoto, blankchar, g }
   from './wiz';
@@ -45,8 +45,8 @@ export async function equipchr(chari: number): Promise<void> {
   // Declared but not read until something fills it, as the original's local TOBJREC is.
   let objectr!: IObject;
 
-  function readobject(index: number): void {
-    objectr = disk().read(Zone.object, index, object);
+  async function readobject(index: number): Promise<void> {
+    objectr = await getrec(Zone.object, index, object);
   }
 
   /**
@@ -54,11 +54,11 @@ export async function equipchr(chari: number): Promise<void> {
    * filled at all, the best healing on offer, and the bonuses against monster kinds, which are
    * gathered together rather than taken from any one item.
    */
-  function normpow(): void {
+  async function normpow(): Promise<void> {
     canuse = new Array<boolean>(7).fill(false);
 
     for (let possx: number = 1; possx <= who.possessions.count; possx++) {
-      readobject(who.possessions.items[possx - 1].objectIndex);
+      await readobject(who.possessions.items[possx - 1].objectIndex);
 
       if (objectr.usableByClass[who.characterClass] !== 0) {
         canuse[objectr.objectType] = true;
@@ -82,11 +82,11 @@ export async function equipchr(chari: number): Promise<void> {
    * ARMORPOW. What one equipped item does. An item of the wrong alignment turns on its owner:
    * it makes them worse instead of better, and it will not come off again.
    */
-  function armorpow(charx: number, possx: number, objid: number): void {
+  async function armorpow(charx: number, possx: number, objid: number): Promise<void> {
     const holder: ICharacter = g.charactr[charx];
 
     unarmed = false;
-    readobject(objid);
+    await readobject(objid);
     holder.possessions.items[possx - 1].cursed = objectr.cursed;
 
     if ((objectr.alignment === Talign.unalign) || (objectr.alignment === holder.alignment)) {
@@ -113,10 +113,10 @@ export async function equipchr(chari: number): Promise<void> {
   }
 
   /** ARM4CHAR. Re-applies whatever is already equipped. */
-  function arm4char(): void {
+  async function arm4char(): Promise<void> {
     for (let possx: number = 1; possx <= who.possessions.count; possx++) {
       if (who.possessions.items[possx - 1].equipped) {
-        armorpow(chari, possx, who.possessions.items[possx - 1].objectIndex);
+        await armorpow(chari, possx, who.possessions.items[possx - 1].objectIndex);
       }
     }
   }
@@ -350,7 +350,7 @@ export async function equipchr(chari: number): Promise<void> {
 
     for (possi = 1; possi <= who.possessions.count; possi++) {
       if (who.possessions.items[possi - 1].objectIndex > 0) {
-        readobject(who.possessions.items[possi - 1].objectIndex);
+        await readobject(who.possessions.items[possi - 1].objectIndex);
 
         if (objectr.special > 0) {
           await spcpower();
@@ -385,7 +385,7 @@ export async function equipchr(chari: number): Promise<void> {
           } while (!((possi > 0) && (possi <= posscnt)));
 
           who.possessions.items[objlist[possi] - 1].equipped = true;
-          armorpow(chari, objlist[possi], who.possessions.items[objlist[possi] - 1].objectIndex);
+          await armorpow(chari, objlist[possi], who.possessions.items[objlist[possi] - 1].objectIndex);
         });
       }
 
@@ -427,7 +427,7 @@ export async function equipchr(chari: number): Promise<void> {
 
       for (possi = 1; possi <= who.possessions.count; possi++) {
         if (who.possessions.items[possi - 1].objectIndex > 0) {
-          readobject(who.possessions.items[possi - 1].objectIndex);
+          await readobject(who.possessions.items[possi - 1].objectIndex);
 
           if ((objectr.objectType === obji) &&
               (objectr.usableByClass[who.characterClass] !== 0)) {
@@ -488,18 +488,18 @@ export async function equipchr(chari: number): Promise<void> {
         gotoxy(7, 23);
         cursbell('** CURSED **');
         who.possessions.items[objlist[tempx] - 1].equipped = true;
-        armorpow(chari, objlist[tempx], who.possessions.items[objlist[tempx] - 1].objectIndex);
+        await armorpow(chari, objlist[tempx], who.possessions.items[objlist[tempx] - 1].objectIndex);
       }
     });
   }
 
 
   initstuf();
-  normpow();
+  await normpow();
   unarmed = true;
 
   if (equipall) {
-    arm4char();
+    await arm4char();
   } else {
     // WEAPON through GAUNTLET, then MISC on its own. SPECIAL sits between them in the enumeration
     // and is stepped over, so nothing of that kind is ever offered for a slot.

@@ -12,8 +12,9 @@
 import { MAZE_SIZE, Wall, Zone, character, maze, scenarioToc } from '../data/layout/wiz-types';
 import type { ICharacter, IMaze } from '../data/layout/wiz-types';
 import { GRAPHICS_FONT_BLOCK, TEXT_FONT_BLOCK } from '../data/scenario-disk';
-import { exit, withExit, withExitSync } from '../runtime/pascal-exit';
-import { disk, rt } from '../runtime/runtime';
+import { exit, withExit } from '../runtime/pascal-exit';
+import { rt } from '../runtime/runtime';
+import { getblock, getrec, putrec, resetdrive } from './diskio';
 import { CRETURN, Direction, Xgoto, blankmap, g } from './wiz';
 import { chr, getkey, gotoxy, graphics, ord, printchr, printstr, textmode, write, writeln }
   from './wiz2';
@@ -39,8 +40,8 @@ const TEE_BOTTOM: number = 94;
 
 
 /** The font PRGRCHR draws with, which the game swaps for the disk's other one and back again. */
-export function loadcharset(block: number): void {
-  rt().display.charset.load(disk().readBlock(block));
+export async function loadcharset(block: number): Promise<void> {
+  rt().display.charset.load(await getblock(block));
 }
 
 
@@ -48,7 +49,7 @@ export function loadcharset(block: number): void {
  * MAZESCRN. The border, the divider between the view and the menu, and the rules the party list
  * sits under. It is drawn once, and everything afterwards writes inside it.
  */
-export function mazescrn(): void {
+export async function mazescrn(): Promise<void> {
   function horzhyph(): void {
     for (g.llbase04 = 1; g.llbase04 <= 38; g.llbase04++) {
       printchr(chr(HYPHEN));
@@ -81,9 +82,9 @@ export function mazescrn(): void {
     printchr(chr(LOWER_RIGHT));
   }
 
-  function initscrn(): void {
+  async function initscrn(): Promise<void> {
     rt().display.hires.clrrect(0, 0, 40, 24);
-    loadcharset(GRAPHICS_FONT_BLOCK);
+    await loadcharset(GRAPHICS_FONT_BLOCK);
     scrnoutl();
     horzline(10);
     horzline(15);
@@ -105,13 +106,13 @@ export function mazescrn(): void {
     printchr(chr(TEE_RIGHT));
     rt().display.mvcursor(12, 10);
     printchr(chr(TEE_BOTTOM));
-    loadcharset(TEXT_FONT_BLOCK);
+    await loadcharset(TEXT_FONT_BLOCK);
     rt().display.mvcursor(1, 16);
     printstr('# CHARACTER NAME  CLASS AC HITS STATUS');
   }
 
   rt().display.hires.clrrect(0, 0, 40, 24);  // Repeated in INITSCRN, as it was.
-  initscrn();
+  await initscrn();
 }
 
 
@@ -146,8 +147,8 @@ export async function inspect(): Promise<void> {
   }
 
   /** LOOKLOST. */
-  function looklost(): void {
-    withExitSync('LOOKLOST', (): void => {
+  async function looklost(): Promise<void> {
+    await withExit('LOOKLOST', async (): Promise<void> => {
 
       /** FOUNDLOS. Five, not six: the sixth of the list can never be shown, let alone picked up. */
       function foundlos(): void {
@@ -173,7 +174,7 @@ export async function inspect(): Promise<void> {
       for (pickchar = 0;
            pickchar <= (g.scntoc.recordsOnDisk[Zone.character] - 1);
            pickchar++) {
-        pickrec = disk().read(Zone.character, pickchar, character);
+        pickrec = await getrec(Zone.character, pickchar, character);
 
         if (!pickrec.inMaze) {
           if (pickrec.lostLocation[2] === g.mazelev) {
@@ -223,13 +224,13 @@ export async function inspect(): Promise<void> {
         exit('PICKUP');
       }
 
-      g.charactr[g.partycnt] = disk().read(Zone.character, picklist[pickchar], character);
+      g.charactr[g.partycnt] = await getrec(Zone.character, picklist[pickchar], character);
       g.chardisk[g.partycnt] = picklist[pickchar];
       g.charactr[g.partycnt].lostLocation[0] = 0;
       g.charactr[g.partycnt].lostLocation[1] = 0;
       g.charactr[g.partycnt].lostLocation[2] = 0;
       g.charactr[g.partycnt].inMaze = true;
-      disk().write(Zone.character, picklist[pickchar], character, g.charactr[g.partycnt]);
+      await putrec(Zone.character, picklist[pickchar], character, g.charactr[g.partycnt]);
       picklist[pickchar] = -1;
       g.partycnt = g.partycnt + 1;
       gotoxy(0, 3 + pickchar);
@@ -241,7 +242,7 @@ export async function inspect(): Promise<void> {
    * EXPLROOM. The flood. One pass per dot on the screen, and it keeps going until a pass adds
    * nothing, so the number of dots is how far the room reaches rather than how big it is.
    */
-  function explroom(): void {
+  async function explroom(): Promise<void> {
     let donelook: boolean = false;
 
     /** CHECKLOC. An open wall only: anything you have to open is the edge of the room. */
@@ -261,7 +262,7 @@ export async function inspect(): Promise<void> {
       inmyroom[x][y] = true;
     }
 
-    mazerec = disk().read(Zone.maze, g.mazelev - 1, maze);
+    mazerec = await getrec(Zone.maze, g.mazelev - 1, maze);
     inmyroom = blankmap();
     inmyroom[g.mazex][g.mazey] = true;
     checked = blankmap();
@@ -289,8 +290,8 @@ export async function inspect(): Promise<void> {
   write(chr(12));
   write('LOOKING');
   textmode();
-  explroom();
-  looklost();
+  await explroom();
+  await looklost();
 
   do {
     gotoxy(0, 20);
@@ -321,6 +322,8 @@ export async function inspect(): Promise<void> {
 
 
 export async function initgame(): Promise<void> {
+  resetdrive();
+
   if (g.llbase04 === -1) {
     write(chr(12));
     gotoxy(0, 11);
@@ -332,13 +335,13 @@ export async function initgame(): Promise<void> {
     } while (g.inchar !== chr(CRETURN));
 
     g.timedlay = STARTING_DELAY;
-    g.scntoc = disk().read(Zone.toc, 0, scenarioToc);
+    g.scntoc = await getrec(Zone.toc, 0, scenarioToc);
   }
 
   g.xgoto = Xgoto.xcastle;
   write(chr(12));
   textmode();
-  mazescrn();
+  await mazescrn();
   g.mazex = 0;
   g.mazey = 0;
   g.mazelev = 0;

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import type { IDriveActivity } from './block-cache-model';
+import { NO_ACTIVITY } from './block-cache-model';
 import { BLOCK_SIZE } from './dsk/dsk-image';
 import { Zone, character } from './layout/wiz-types';
 import { ScenarioDisk } from './scenario-disk';
@@ -172,5 +174,71 @@ describe('saying when a write has landed', (): void => {
     watcher.scenario.read(Zone.character, 0, character);
 
     expect(watcher.writes).toBe(0);
+  });
+});
+
+
+describe('saying when the drive would have moved', (): void => {
+  it('reads a record off the disk the first time its pair is wanted', (): void => {
+    const scenario: ScenarioDisk = aScenario();
+
+    scenario.read(Zone.character, 0, character);
+
+    expect(scenario.lastActivity.read).toBe(true);
+  });
+
+  it('spins the drive up for that first read', (): void => {
+    const scenario: ScenarioDisk = aScenario();
+
+    scenario.read(Zone.character, 0, character);
+
+    expect(scenario.lastActivity.spinUp).toBe(true);
+  });
+
+  it('moves nothing for the next record in the same pair', (): void => {
+    const scenario: ScenarioDisk = aScenario();
+
+    scenario.read(Zone.character, 0, character);
+    scenario.read(Zone.character, 1, character);
+
+    expect(scenario.lastActivity).toEqual(NO_ACTIVITY);
+  });
+
+  it('reads again for a record in the next pair', (): void => {
+    const scenario: ScenarioDisk = aScenario();
+
+    scenario.read(Zone.character, 0, character);
+    scenario.read(Zone.character, 4, character);
+
+    expect(scenario.lastActivity.read).toBe(true);
+  });
+
+  it('writes a dirty pair out when a read of another pair evicts it', (): void => {
+    const scenario: ScenarioDisk = aScenario();
+
+    scenario.write(Zone.character, 0, character, scenario.read(Zone.character, 0, character));
+    scenario.read(Zone.character, 4, character);
+
+    expect(scenario.lastActivity.wrote).toBe(true);
+  });
+
+  it('loses a dirty pair to a raw block read, which went past the cache without writing it', (): void => {
+    const scenario: ScenarioDisk = aScenario();
+
+    scenario.write(Zone.character, 0, character, scenario.read(Zone.character, 0, character));
+    scenario.readBlock(1);
+
+    expect(scenario.lastActivity.wrote).toBe(false);
+  });
+
+  it('records nothing of a read that was refused', (): void => {
+    const scenario: ScenarioDisk = aScenario();
+
+    scenario.read(Zone.character, 0, character);
+
+    const before: IDriveActivity = scenario.lastActivity;
+
+    expect((): void => { scenario.read(Zone.character, 100000, character); }).toThrow(RangeError);
+    expect(scenario.lastActivity).toBe(before);
   });
 });

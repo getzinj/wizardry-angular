@@ -9,11 +9,13 @@
 // holding a fixed encounter, flooded outwards through open walls. Walking into a room clears it
 // again, so a party that keeps moving meets fewer monsters than one that paces about.
 
+import { word } from '../data/layout/ucsd-layout';
 import { MAZE_SIZE, SquareKind, Wall, Zone, character, maze, object, possession, scenarioToc }
   from '../data/layout/wiz-types';
 import type { ICharacter, IMaze, IObject } from '../data/layout/wiz-types';
 import { exit, withExit, withExitSync } from '../runtime/pascal-exit';
-import { disk, rt } from '../runtime/runtime';
+import { rt } from '../runtime/runtime';
+import { getblock, getrec } from './diskio';
 import { equip1, equip6, reorder } from './utilitie2';
 import { CRETURN, Tattrib, Tstatus, Xgoto, blankmap, g, spelgrp } from './wiz';
 import { centstr, chr, getkey, getline, gotoxy, ord, random, textmode, write, writeln } from './wiz2';
@@ -31,7 +33,7 @@ let mazemap: IMaze;
 
 
 /** NEWMAZE. */
-function newmaze(): void {
+async function newmaze(): Promise<void> {
 
   function fights(): void {
     let fightx: number = 0;
@@ -121,7 +123,7 @@ function newmaze(): void {
     g.xgoto = Xgoto.xrunner;
   }
 
-  mazemap = disk().read(Zone.maze, g.mazelev - 1, maze);
+  mazemap = await getrec(Zone.maze, g.mazelev - 1, maze);
   fights();
   rt().display.hires.clrrect(1, 11, 38, 4);
   exit('UTILITIE');
@@ -192,9 +194,9 @@ async function rdspells(): Promise<void> {
     // sitting in the cache. The UNITREAD below reads the book straight INTO that same buffer
     // without touching the bookkeeping that says which blocks are in it, which is why the flush
     // has to happen first and why the second UNITREAD has to put the buffer back.
-    g.scntoc = disk().read(Zone.toc, 0, scenarioToc);
+    g.scntoc = await getrec(Zone.toc, 0, scenarioToc);
 
-    const book: Uint8Array = disk().readBlock(dsksplnm);
+    const book: Uint8Array = await getblock(dsksplnm);
     let chptr: number = 0;
 
     splistx = 0;
@@ -222,8 +224,9 @@ async function rdspells(): Promise<void> {
       chptr = chptr + 1;
     }
 
-    // The original refills the cache with the table of contents pair it displaced. There is no
-    // cache here, so there is nothing to put back.
+    // The original refills the cache with the table of contents pair the book displaced, which is
+    // one more read off the disk.
+    await getrec(Zone.toc, 0, word());
     await spreturn();
   }
 
@@ -359,7 +362,7 @@ async function iditem(): Promise<void> {
   }
 
   if ((random() % 100) < (35 - (3 * who.level))) {
-    const objectr: IObject = disk().read(Zone.object, slot.objectIndex, object);
+    const objectr: IObject = await getrec(Zone.object, slot.objectIndex, object);
 
     slot.cursed = objectr.cursed;
     g.xgoto = Xgoto.xeqpdsp;
@@ -446,7 +449,7 @@ async function kandifnd(): Promise<void> {
   for (let charxdsk: number = 0;
        charxdsk <= (g.scntoc.recordsOnDisk[Zone.character] - 1);
        charxdsk++) {
-    lostchar = disk().read(Zone.character, charxdsk, character);
+    lostchar = await getrec(Zone.character, charxdsk, character);
 
     if (lostchar.name === locstring) {
       await kandiloc();
@@ -684,7 +687,7 @@ export async function utilitie(): Promise<void> {
         break;
 
       case Xgoto.xnewmaze:
-        newmaze();
+        await newmaze();
         break;
 
       case Xgoto.xequip6:

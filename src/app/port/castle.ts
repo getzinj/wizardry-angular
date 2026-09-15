@@ -10,7 +10,7 @@
 import { Zone, character, scenarioToc } from '../data/layout/wiz-types';
 import type { ICharacter } from '../data/layout/wiz-types';
 import { exit, withExit, withExitSync } from '../runtime/pascal-exit';
-import { disk } from '../runtime/runtime';
+import { getrec, putrec } from './diskio';
 import { CRETURN, PARTY_MAXIMUM, Talign, Tstatus, Xgoto, g } from './wiz';
 import { centstr, chr, getcharx, getkey, getline, gotoxy, ord, random, unitclear, write, writeln } from './wiz2';
 
@@ -103,8 +103,8 @@ export function dspparty(title: string): void {
 
 
 /** The original re-reads the table of contents to force its dirty block pair out to the floppy. */
-function gtscntoc(): void {
-  g.scntoc = disk().read(Zone.toc, 0, scenarioToc);
+async function gtscntoc(): Promise<void> {
+  g.scntoc = await getrec(Zone.toc, 0, scenarioToc);
 }
 
 
@@ -169,13 +169,13 @@ export async function gilgamsh(): Promise<void> {
 
         let chari: number = 0;
 
-        g.charactr[g.partycnt] = disk().read(Zone.character, chari, character);
+        g.charactr[g.partycnt] = await getrec(Zone.character, chari, character);
 
         while ((chari < g.scntoc.recordsOnDisk[Zone.character])
             && ((charname !== g.charactr[g.partycnt].name)
                 || (g.charactr[g.partycnt].status === Tstatus.lost))) {
           chari = chari + 1;
-          g.charactr[g.partycnt] = disk().read(Zone.character, chari, character);
+          g.charactr[g.partycnt] = await getrec(Zone.character, chari, character);
         }
 
         if (chari === g.scntoc.recordsOnDisk[Zone.character]) {
@@ -204,11 +204,11 @@ export async function gilgamsh(): Promise<void> {
         // out. There is no notch to tape over now.
         g.chardisk[g.partycnt] = chari;
         g.charactr[g.partycnt].inMaze = true;
-        disk().write(Zone.character, chari, character, g.charactr[g.partycnt]);
+        await putrec(Zone.character, chari, character, g.charactr[g.partycnt]);
 
         g.partycnt = g.partycnt + 1;
         getalign();
-        gtscntoc();
+        await gtscntoc();
         charinfo(g.partycnt - 1);
       });
     }
@@ -222,7 +222,7 @@ export async function gilgamsh(): Promise<void> {
         }
 
         g.charactr[chari].inMaze = false;
-        disk().write(Zone.character, g.chardisk[chari], character, g.charactr[chari]);
+        await putrec(Zone.character, g.chardisk[chari], character, g.charactr[chari]);
 
         if (chari !== (g.partycnt - 1)) {
           for (let charx: number = chari + 1; charx <= (g.partycnt - 1); charx++) {

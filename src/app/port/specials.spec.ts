@@ -18,48 +18,48 @@ function litPixelCount(rows: readonly string[]): number {
 }
 
 
-function drawnFrame(): void {
+async function drawnFrame(): Promise<void> {
   boot(rosterOf(), Xgoto.xrunner);
-  mazescrn();
+  await mazescrn();
 }
 
 
 describe('the maze screen frame', (): void => {
-  it('rules off the maze view from the panel beside it at column 12', (): void => {
-    drawnFrame();
+  it('rules off the maze view from the panel beside it at column 12', async (): Promise<void> => {
+    await drawnFrame();
 
     // Character rows 1 to 9 are pixel rows 8 to 79, and the divider fills every one of them.
     expect(litPixelCount(rt().display.hires.toAscii(12 * 7, 8, 7, 72))).toBe(7 * 72);
   });
 
-  it('leaves the maze view itself empty for DRAWMAZE to fill', (): void => {
-    drawnFrame();
+  it('leaves the maze view itself empty for DRAWMAZE to fill', async (): Promise<void> => {
+    await drawnFrame();
 
     // Character columns 1 to 11 of rows 1 to 9: the view, without the border down one side of it
     // and the divider down the other, both of which the picture window overlaps by a few pixels.
     expect(litPixelCount(rt().display.hires.toAscii(7, 8, 11 * 7, 9 * 8))).toBe(0);
   });
 
-  it('draws a border down the left edge of every row between the corners', (): void => {
-    drawnFrame();
+  it('draws a border down the left edge of every row between the corners', async (): Promise<void> => {
+    await drawnFrame();
 
     expect(litPixelCount(rt().display.hires.toAscii(0, 8, 7, 8))).toBe(7 * 8);
   });
 
-  it('draws a border down the right edge too', (): void => {
-    drawnFrame();
+  it('draws a border down the right edge too', async (): Promise<void> => {
+    await drawnFrame();
 
     expect(litPixelCount(rt().display.hires.toAscii(39 * 7, 8, 7, 8))).toBe(7 * 8);
   });
 
-  it('rules off the party list from the message area at row 15', (): void => {
-    drawnFrame();
+  it('rules off the party list from the message area at row 15', async (): Promise<void> => {
+    await drawnFrame();
 
     expect(litPixelCount(rt().display.hires.toAscii(7, 15 * 8, 7, 8))).toBe(7 * 8);
   });
 
-  it('leaves the row below the bottom border alone', (): void => {
-    drawnFrame();
+  it('leaves the row below the bottom border alone', async (): Promise<void> => {
+    await drawnFrame();
 
     expect(litPixelCount(rt().display.hires.toAscii(0, 24 * 8, 280, 192 - (24 * 8)))).toBe(0);
   });

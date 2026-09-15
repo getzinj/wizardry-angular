@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { Zone, character } from '../data/layout/wiz-types';
 import type { ICharacter } from '../data/layout/wiz-types';
 import type { ScenarioDisk } from '../data/scenario-disk';
-import { RETURN, boot, press, rosterOf, screenAfter, somebody, waitAtPrompt } from './port-fixture';
+import { MILLISECONDS_PER_BLOCK_PAIR } from './diskio';
+import { RETURN, boot, clock, press, rosterOf, screenAfter, somebody, waitAtPrompt } from './port-fixture';
 import { rt } from '../runtime/runtime';
 import { shops } from './shops2';
 import { random } from './wiz2';
@@ -130,6 +131,10 @@ describe('putting the party down on the way to the training grounds', (): void =
 
   it('marks the disk as needing to be saved', (): void => {
     expect(scenario.changed).toBe(true);
+  });
+
+  it('waits for the disk to take the write, since L)EAVE would otherwise lose it', (): void => {
+    expect(clock().requested.at(-1)).toBe(2 * MILLISECONDS_PER_BLOCK_PAIR);
   });
 });
 
@@ -474,6 +479,13 @@ describe('coming up out of the maze', (): void => {
     await shops();
 
     expect(scenario.read(Zone.character, 0, character).inMaze).toBe(true);
+  });
+
+  it('then waits for the disk to take those writes, as the original forced it to', async (): Promise<void> => {
+    inTheMaze(Xgoto.xchk4win, casualty('FRODO'));
+    await shops();
+
+    expect(clock().requested.at(-1)).toBe(2 * MILLISECONDS_PER_BLOCK_PAIR);
   });
 
   it('hands the party to the castle', async (): Promise<void> => {

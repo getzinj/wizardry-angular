@@ -45,9 +45,14 @@ the same way a hardware emulator expects you to bring your own disk.
 - **Original identifiers, lowercased.** Pascal does not distinguish case and TypeScript does, so
   each name gets one spelling. The compiler of the day looked at only the first eight characters,
   which is why some names appear in the source in two lengths; the eight-character form wins.
-- **Every procedure is `async`.** Waiting for a keypress and waiting out one of the game's delay
-  loops are the only things that suspend, but either can happen anywhere, so the whole layer is
-  asynchronous and `no-floating-promises` stays on.
+- **Every procedure is `async`.** Waiting for a keypress, waiting out one of the game's delay
+  loops and waiting for the disk are the only things that suspend, but any can happen anywhere,
+  so the whole layer is asynchronous and `no-floating-promises` stays on.
+- **The disk is reached through `port/diskio.ts`** (`getrec`, `putrec`, `getblock`, ...), never
+  `disk()` directly. The scenario is whole in memory, but `ScenarioDisk.drive` keeps the
+  original's block-pair cache bookkeeping to say when the drive would have moved, and each
+  accessor waits that time out on the machine's clock. That is what puts the pauses back where
+  the Apple II had them.
 - **Non-local exits** become a thrown `PascalExit` caught at the procedure named, since Pascal
   could jump out of any depth of nesting at once.
 - Copy protection is not ported. Where the game called into it, the call throws instead.

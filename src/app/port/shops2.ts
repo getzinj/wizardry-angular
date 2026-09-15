@@ -9,9 +9,10 @@
 
 
 import { Zone, character, scenarioToc } from '../data/layout/wiz-types';
+import { word } from '../data/layout/ucsd-layout';
 import { GRAPHICS_FONT_BLOCK, TEXT_FONT_BLOCK } from '../data/scenario-disk';
 import { exit, withExit } from '../runtime/pascal-exit';
-import { disk } from '../runtime/runtime';
+import { getrec, putrec } from './diskio';
 import { boltac, cant } from './shops';
 import { loadcharset } from './specials';
 import type { ITwizlong } from './wiz';
@@ -44,16 +45,17 @@ async function edgetown(): Promise<void> {
    * clears CACHEWRI without flushing, so a pair still dirty at that point would take the whole
    * party down with it and leave them marked as out for good.
    *
-   * There is no block cache here, but the same urgency holds, because the disk image is not the
-   * disk either. ScenarioDisk.onChanged is what says so: the write below sets it going, and the
-   * disk is in storage before the player can do anything else.
+   * The disk image is not the disk either, and ScenarioDisk.onChanged carries the same urgency:
+   * the write below sets it going, and the disk is in storage before the player can do anything
+   * else. The read is kept for the wait it cost, evicting the dirty pair as it did.
    */
-  function updchars(): void {
+  async function updchars(): Promise<void> {
     for (let x: number = 0; x <= (g.partycnt - 1); x++) {
       g.charactr[x].inMaze = false;
-      disk().write(Zone.character, g.chardisk[x], character, g.charactr[x]);
+      await putrec(Zone.character, g.chardisk[x], character, g.charactr[x]);
     }
 
+    await getrec(Zone.toc, 0, word());
     g.partycnt = 0;
     exit('SHOPS');
   }
@@ -81,10 +83,10 @@ async function edgetown(): Promise<void> {
     entmaze();
   } else if (g.inchar === 'T') {
     g.xgoto = Xgoto.xtrainin;
-    updchars();
+    await updchars();
   } else if (g.inchar === 'L') {
     g.xgoto = Xgoto.xdone;
-    updchars();
+    await updchars();
   } else {
     g.xgoto = Xgoto.xcastle;
     exit('SHOPS');
@@ -115,7 +117,7 @@ async function cemetary(): Promise<void> {
   let two: number = 0;
 
   /** TOMBSTON. A stone drawn out of the box font, then the name and age in the text one. */
-  function tombston(chari: number): void {
+  async function tombston(chari: number): Promise<void> {
     let tombx: number;
     let tomby: number;
 
@@ -128,7 +130,7 @@ async function cemetary(): Promise<void> {
 
     tombx = 20 * (chari % 2);
     tomby = 6 * Math.trunc(chari / 2);
-    loadcharset(GRAPHICS_FONT_BLOCK);
+    await loadcharset(GRAPHICS_FONT_BLOCK);
     rt().display.mvcursor(tombx, tomby);
 
     for (const row of TOMBSTONE_ROWS) {
@@ -137,7 +139,7 @@ async function cemetary(): Promise<void> {
 
     // The age and the name go back in the readable font, and above where the drawing finished: the
     // rows the loop has already walked past are what TOMBY counting on leaves behind.
-    loadcharset(TEXT_FONT_BLOCK);
+    await loadcharset(TEXT_FONT_BLOCK);
     rt().display.mvcursor(tombx + 1, tomby - 2);
     printnum(Math.trunc(g.charactr[chari].age / 52), 2);
     rt().display.mvcursor(tombx + 4, tomby - 4);
@@ -145,7 +147,7 @@ async function cemetary(): Promise<void> {
   }
 
   /** BADSTUFF. */
-  function badstuff(): void {
+  async function badstuff(): Promise<void> {
 
     /**
      * BREAKPOS. Luck against a roll for everything not cursed: what loses is set to object zero and
@@ -199,25 +201,25 @@ async function cemetary(): Promise<void> {
           who.lostLocation[2] = g.mazelev;
         }
 
-        disk().write(Zone.character, g.chardisk[g.llbase04], character, who);
+        await putrec(Zone.character, g.chardisk[g.llbase04], character, who);
       }
     }
 
     // The original re-reads the table of contents here to force the last of those writes out to
-    // the floppy. Nothing here needs forcing; the read is kept because the original made it.
-    g.scntoc = disk().read(Zone.toc, 0, scenarioToc);
+    // the floppy, and the read still does: it evicts the dirty pair, and the wait for that is paid.
+    g.scntoc = await getrec(Zone.toc, 0, scenarioToc);
   }
 
-  badstuff();
+  await badstuff();
   rt().display.hires.clrrect(0, 0, 40, 24);
   graphics();
 
   for (g.llbase04 = 0; g.llbase04 <= (g.partycnt - 1); g.llbase04++) {
-    tombston(g.llbase04);
+    await tombston(g.llbase04);
   }
 
   // A box across the bottom three rows, drawn from the same font as the stones.
-  loadcharset(GRAPHICS_FONT_BLOCK);
+  await loadcharset(GRAPHICS_FONT_BLOCK);
   rt().display.mvcursor(0, 19);
   printchr(chr(33));
 
@@ -250,7 +252,7 @@ async function cemetary(): Promise<void> {
   }
 
   printchr(chr(38));
-  loadcharset(TEXT_FONT_BLOCK);
+  await loadcharset(TEXT_FONT_BLOCK);
   rt().display.mvcursor(1, 20);
   printstr('YOUR ENTIRE PARTY HAS BEEN SLAUGHTERED');
   rt().display.mvcursor(1, 22);
@@ -364,13 +366,15 @@ async function chk4win(): Promise<void> {
 
   for (charx = 0; charx <= (g.partycnt - 1); charx++) {
     g.charactr[charx].inMaze = g.charactr[charx].status === Tstatus.ok;
-    disk().write(Zone.character, g.chardisk[charx], character, g.charactr[charx]);
+    await putrec(Zone.character, g.chardisk[charx], character, g.charactr[charx]);
   }
 
   // The original reads two bytes of the table of contents over the top of CHARX here, which the
   // next line overwrites anyway: the read is for the flush it forces, not for what it lands on.
   // CEMETARY's version of the same trick reads the whole record into SCNTOC and so is carried
-  // across above; this one lands nowhere, needs no flush here, and so leaves nothing behind.
+  // across above; this one lands nowhere, so what is kept is the wait: the dirty pair going out and
+  // the table of contents coming in.
+  await getrec(Zone.toc, 0, word());
   charx = 0;
   possi = 0;
 

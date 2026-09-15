@@ -12,7 +12,8 @@ import type { IHitPointRoll, IMonster } from '../data/layout/wiz-types';
 import { Zone, monster } from '../data/layout/wiz-types';
 import { word } from '../data/layout/ucsd-layout';
 import { exit, withExit } from '../runtime/pascal-exit';
-import { disk, rt } from '../runtime/runtime';
+import { rt } from '../runtime/runtime';
+import { getbytes, getrec } from './diskio';
 import type { ITwizlong } from './wiz';
 import { PARTY_MAXIMUM, Talign, Tstatus, Xgoto, g } from './wiz';
 import { chr, clearpic, getkey, printstr, random, write } from './wiz2';
@@ -265,7 +266,7 @@ export function resetcombat(): void {
  * which is a disk read this port has nothing to match. The index is tested here instead, so both
  * land on the first picture, and a record that is not there is never asked for.
  */
-function enemypic(pic: number): void {
+async function enemypic(pic: number): Promise<void> {
   clearpic();
 
   let enemyid: number = pic;
@@ -275,7 +276,7 @@ function enemypic(pic: number): void {
     write(chr(7));
   }
 
-  const picture: Uint8Array = disk().readRecord(Zone.picture, enemyid, PICTURE_SIZE);
+  const picture: Uint8Array = await getbytes(Zone.picture, enemyid, PICTURE_SIZE);
   let at: number = 0;
 
   for (let picline: number = PICTURE_FIRST_ROW; picline <= PICTURE_LAST_ROW; picline++) {
@@ -286,7 +287,7 @@ function enemypic(pic: number): void {
 
 
 /** SVREWARD. The fight is over: wake anyone asleep or afraid, and write down who was fought. */
-function svreward(): void {
+async function svreward(): Promise<void> {
   for (let x: number = 0; x <= (g.partycnt - 1); x++) {
     if ((g.charactr[x].status === Tstatus.asleep) || (g.charactr[x].status === Tstatus.afraid)) {
       g.charactr[x].status = Tstatus.ok;
@@ -297,7 +298,7 @@ function svreward(): void {
   // in the cache and writes out whatever was still dirty, before the cache is written over with
   // the battle result. What is left of it is the two bytes it copied into LLBASE04, which are the
   // length of GAMENAME and its first character.
-  g.llbase04 = disk().read(Zone.toc, 0, word());
+  g.llbase04 = await getrec(Zone.toc, 0, word());
 
   for (let x: number = 0; x < drained.length; x++) {
     batreslt.drained[x] = drained[x];
@@ -332,17 +333,17 @@ async function initattk(): Promise<void> {
     return g.llbase04;
   }
 
-  function initgrup(): void {
+  async function initgrup(): Promise<void> {
     /**
      * ENGROUPS. Reads a monster, and then may read the monster it keeps company with into the next
      * group along, up to four groups deep. A monster whose UNIQUE has run down to nothing stands
      * aside for the one named in ENMYTEAM, which is how the uniques are used up.
      */
-    function engroups(enmyi: number, enmygrup: number): void {
+    async function engroups(enmyi: number, enmygrup: number): Promise<void> {
       let which: number = enmyi;
 
       do {
-        battlerc[enmygrup].b = disk().read(Zone.monster, which, monster);
+        battlerc[enmygrup].b = await getrec(Zone.monster, which, monster);
 
         if (battlerc[enmygrup].b.unique === 0) {
           which = battlerc[enmygrup].b.friends;
@@ -355,7 +356,7 @@ async function initattk(): Promise<void> {
         if (battlerc[enmygrup].b.friends >= 0) {
           if (enmygrup <= g.mazelev) {
             if ((random() % 100) < battlerc[enmygrup].b.friendsPercent) {
-              engroups(battlerc[enmygrup].b.friends, enmygrup + 1);
+              await engroups(battlerc[enmygrup].b.friends, enmygrup + 1);
             }
           }
         }
@@ -368,10 +369,10 @@ async function initattk(): Promise<void> {
       battlerc[groupi].a.enemyid = -1;
     }
 
-    engroups(g.enemyinx, 1);
+    await engroups(g.enemyinx, 1);
 
     g.enemyinx = battlerc[1].a.enemyid;
-    enemypic(battlerc[1].b.picture);
+    await enemypic(battlerc[1].b.picture);
 
     for (groupi = 1; groupi <= 4; groupi++) {
       if (battlerc[groupi].a.enemyid !== -1) {
@@ -497,7 +498,7 @@ async function initattk(): Promise<void> {
   rt().display.hires.clrrect(13, 1, 26, 4);
   rt().display.hires.clrrect(13, 6, 26, 4);
   rt().display.hires.clrrect(1, 11, 38, 4);
-  initgrup();
+  await initgrup();
   intparty();
   drained.fill(false);
 
@@ -522,6 +523,6 @@ export async function cinit(): Promise<void> {
   if (cvar.cinitfl1 === 0) {
     await initattk();
   } else {
-    svreward();
+    await svreward();
   }
 }

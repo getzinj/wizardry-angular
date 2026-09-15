@@ -8,7 +8,8 @@
 import type { IExperienceTable, IMonster } from '../data/layout/wiz-types';
 import { Zone, experienceTable, monster } from '../data/layout/wiz-types';
 import { exit, withExit } from '../runtime/pascal-exit';
-import { disk, rt } from '../runtime/runtime';
+import { rt } from '../runtime/runtime';
+import { getrec } from './diskio';
 import { batreslt } from './combat';
 import { chstgold, expperch, prlong2, rvar } from './rewards';
 import type { ITwizlong } from './wiz';
@@ -43,12 +44,12 @@ async function giveexp(): Promise<void> {
     }
 
     /** CALC1EXP. Every group that was fought, added up and divided between the survivors. */
-    function calc1exp(): void {
+    async function calc1exp(): Promise<void> {
       let mult2040: number = 0;
 
-      function totalexp(): void {
+      async function totalexp(): Promise<void> {
         const enemyrec: IMonster =
-          disk().read(Zone.monster, batreslt.enmyid[charxxx], monster);
+          await getrec(Zone.monster, batreslt.enmyid[charxxx], monster);
 
         /**
          * CALCKILL. What one of them is worth. The original's own comment notes that Legacy of
@@ -144,7 +145,7 @@ async function giveexp(): Promise<void> {
 
       for (charxxx = 1; charxxx <= 4; charxxx++) {
         if (batreslt.enmyid[charxxx] >= 0) {
-          totalexp();
+          await totalexp();
         }
       }
 
@@ -158,7 +159,7 @@ async function giveexp(): Promise<void> {
      */
     async function chkdrain(): Promise<void> {
       await withExit('CHKDRAIN', async (): Promise<void> => {
-        const exptable: IExperienceTable = disk().read(Zone.experience, 0, experienceTable);
+        const exptable: IExperienceTable = await getrec(Zone.experience, 0, experienceTable);
 
         async function droplevl(charexp: ITwizlong,
                                 currlevl: number,
@@ -237,7 +238,7 @@ async function giveexp(): Promise<void> {
     // record. There is no cache here: the result is simply where COMBAT left it.
     cntalive();
     await chkdrain();
-    calc1exp();
+    await calc1exp();
     rt().display.hires.clrrect(13, 1, 26, 4);
     rt().display.mvcursor(13, 1);
     printstr('FOR KILLING THE MONSTERS');

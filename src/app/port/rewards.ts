@@ -8,7 +8,8 @@
 import type { ICharacter, IMonster, IObject, IReward, IRewardEntry } from '../data/layout/wiz-types';
 import { Zone, monster, object, reward } from '../data/layout/wiz-types';
 import { exit, withExit } from '../runtime/pascal-exit';
-import { disk, rt } from '../runtime/runtime';
+import { rt } from '../runtime/runtime';
+import { getbytes, getrec, putrec } from './diskio';
 import type { ITwizlong } from './wiz';
 import { PARTY_MAXIMUM, Tattrib, Tclass, Tstatus, Xgoto, g, spelgrp, setspelgrp } from './wiz';
 import {
@@ -54,8 +55,8 @@ export const expperch: ITwizlong = newlong();
  * PIC2SCRN. The chest and the treasure, dropped into video memory a row at a time. COMBAT has its
  * own copy of this for monsters, as ENEMYPIC, and so does the original.
  */
-export function pic2scrn(picture: number): void {
-  const bytes: Uint8Array = disk().readRecord(Zone.picture, picture, PICTURE_SIZE);
+export async function pic2scrn(picture: number): Promise<void> {
+  const bytes: Uint8Array = await getbytes(Zone.picture, picture, PICTURE_SIZE);
   let bufferi: number = 0;
 
   clearpic();
@@ -89,12 +90,12 @@ export function prlong2(mp01: ITwizlong): void {
  * down by one and is written back to the disk, and once it reaches nothing ENGROUPS will send the
  * next fight to whatever the monster keeps company with instead.
  */
-function enmyrewd(): void {
-  const enemy: IMonster = disk().read(Zone.monster, g.enemyinx, monster);
+async function enmyrewd(): Promise<void> {
+  const enemy: IMonster = await getrec(Zone.monster, g.enemyinx, monster);
 
   if (enemy.unique > 0) {
     enemy.unique = enemy.unique - 1;
-    disk().write(Zone.monster, g.enemyinx, monster, enemy);
+    await putrec(Zone.monster, g.enemyinx, monster, enemy);
   }
 
   rvar.oneortwo = 1;
@@ -111,8 +112,8 @@ function enmyrewd(): void {
 
 
 /** FOUNDITM. An item into the first free slot of whoever found it, unidentified. */
-function founditm(fndcharx: number, possx: number, itemindx: number): void {
-  const objectrc: IObject = disk().read(Zone.object, itemindx, object);
+async function founditm(fndcharx: number, possx: number, itemindx: number): Promise<void> {
+  const objectrc: IObject = await getrec(Zone.object, itemindx, object);
 
   rt().display.hires.clrrect(1, 11, 38, 4);
   rt().display.mvcursor(1, 12);
@@ -140,8 +141,8 @@ export async function chstgold(): Promise<void> {
   const gold2one: ITwizlong = newlong();
   let rewardz!: IReward;
 
-  function rdreward(): void {
-    rewardz = disk().read(Zone.reward, rvar.rewardi, reward);
+  async function rdreward(): Promise<void> {
+    rewardz = await getrec(Zone.reward, rvar.rewardi, reward);
   }
 
   /** ACHEST. The chest in front of the party, which nothing makes them open. */
@@ -629,7 +630,7 @@ export async function chstgold(): Promise<void> {
         });
       }
 
-      pic2scrn(CHEST_PICTURE);
+      await pic2scrn(CHEST_PICTURE);
       whotried.fill(false);
       gttrapty();
       rt().display.hires.clrrect(13, 6, 26, 4);
@@ -724,7 +725,7 @@ export async function chstgold(): Promise<void> {
           itemindx = rewardm.calculation[0]
               + calculat(1, rewardm.calculation[3], 1)
               + (rewardm.calculation[1] * chariiii);
-          founditm(charxxxx, chariiii, itemindx);
+          await founditm(charxxxx, chariiii, itemindx);
           await pause2();
         });
       }
@@ -759,8 +760,8 @@ export async function chstgold(): Promise<void> {
     await pause2();
   }
 
-  enmyrewd();
-  rdreward();
+  await enmyrewd();
+  await rdreward();
   unitclear();
 
   if (rewardz.hasChest && (g.chstalrm !== 1)) {
@@ -771,7 +772,7 @@ export async function chstgold(): Promise<void> {
   }
 
   rt().display.hires.clrrect(1, 11, 38, 4);
-  pic2scrn(REWARD_PICTURE);
+  await pic2scrn(REWARD_PICTURE);
 
   for (indx = 1; indx <= rewardz.entryCount; indx++) {
     await getrewrd(rewardz.entries[indx - 1]);

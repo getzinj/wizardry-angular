@@ -8,7 +8,7 @@
 import { Zone, character, scenarioToc } from '../data/layout/wiz-types';
 import type { ICharacter } from '../data/layout/wiz-types';
 import { exit, withExit } from '../runtime/pascal-exit';
-import { disk } from '../runtime/runtime';
+import { fillrec, getrec, putrec } from './diskio';
 import { CRETURN, Talign, Tattrib, Tclass, Trace, Tstatus, Xgoto, blankchar, g, setspelgrp } from './wiz';
 import { chr, getkey, getline, gotoxy, ord, random, write, writeln } from './wiz2';
 
@@ -120,23 +120,23 @@ function setbase(): void {
 }
 
 
-function getcharc(chindx: number): ICharacter {
-  return disk().read(Zone.character, chindx, character);
+async function getcharc(chindx: number): Promise<ICharacter> {
+  return await getrec(Zone.character, chindx, character);
 }
 
 
-function putcharc(buffer: ICharacter, chindx: number): void {
-  disk().write(Zone.character, chindx, character, buffer);
+async function putcharc(buffer: ICharacter, chindx: number): Promise<void> {
+  await putrec(Zone.character, chindx, character, buffer);
 }
 
 
 /**
  * GTSCNTOC. The original re-reads the table of contents after writing a character, because doing
- * so evicted the dirty block pair and so forced it out to the floppy. Nothing here needs forcing,
- * but the read is kept: it is how the game notices a disk that has been swapped underneath it.
+ * so evicted the dirty block pair and so forced it out to the floppy. The read still evicts it
+ * here, and so still costs the write; it is also how the game notices a disk swapped underneath it.
  */
-function gtscntoc(): void {
-  g.scntoc = disk().read(Zone.toc, 0, scenarioToc);
+async function gtscntoc(): Promise<void> {
+  g.scntoc = await getrec(Zone.toc, 0, scenarioToc);
 }
 
 
@@ -448,8 +448,8 @@ async function makechar(): Promise<void> {
     // PUTCHARC copies the whole record, and INITCHAR began by filling it with zeroes, so the slot
     // loses every trace of whoever held it before - the bits no field claims included. Answering
     // N to KEEPCHYN never gets here, which is why the slot is not cleared any earlier.
-    disk().fillchar(Zone.character, characx, character);
-    putcharc(charrec, characx);
+    await fillrec(Zone.character, characx, character);
+    await putcharc(charrec, characx);
   });
 }
 
@@ -472,7 +472,7 @@ async function create(): Promise<void> {
 
     for (let charreci: number = 0; charreci <= (g.scntoc.recordsOnDisk[Zone.character] - 1); charreci++) {
       if (characx < 0) {
-        charrec = getcharc(charreci);
+        charrec = await getcharc(charreci);
 
         if (charrec.status === Tstatus.lost) {
           characx = charreci;
@@ -512,7 +512,7 @@ async function dsp20nm(): Promise<void> {
   writeln('----------------------------------------');
 
   for (let chari: number = 0; chari <= (g.scntoc.recordsOnDisk[Zone.character] - 1); chari++) {
-    charrec = getcharc(chari);
+    charrec = await getcharc(chari);
 
     if (charrec.status !== Tstatus.lost) {
       linecnt = linecnt + 1;
@@ -544,11 +544,11 @@ async function dsp20nm(): Promise<void> {
 /** TRAINING. What can be done to a character that already exists. */
 async function training(): Promise<void> {
   await withExit('TRAINING', async (): Promise<void> => {
-    function losechar(): void {
+    async function losechar(): Promise<void> {
       charrec.status = Tstatus.lost;
       charrec.inMaze = false;
-      putcharc(charrec, characx);
-      gtscntoc();
+      await putcharc(charrec, characx);
+      await gtscntoc();
     }
 
     function inspect(): void {
@@ -574,7 +574,7 @@ async function training(): Promise<void> {
           exit('DELCHAR');
         }
 
-        losechar();
+        await losechar();
         exit('TRAINING');
       });
     }
@@ -652,8 +652,8 @@ async function training(): Promise<void> {
           }
         }
 
-        putcharc(charrec, characx);
-        gtscntoc();
+        await putcharc(charrec, characx);
+        await gtscntoc();
       });
     }
 
@@ -679,8 +679,8 @@ async function training(): Promise<void> {
 
       if (newpass1 === newpass2) {
         charrec.password = newpass1;
-        putcharc(charrec, characx);
-        gtscntoc();
+        await putcharc(charrec, characx);
+        await gtscntoc();
         write('PASSWORD CHANGED - ');
       } else {
         writeln('THEY ARE NOT THE SAME - YOUR PASSWORD');
@@ -760,7 +760,7 @@ async function training(): Promise<void> {
 
           if (g.inchar === 'Y') {
             charname = charrec.name;
-            losechar();
+            await losechar();
             await makechar();
           }
 
@@ -817,7 +817,7 @@ export async function roller(): Promise<void> {
 
         for (tempx = 0; tempx <= (g.scntoc.recordsOnDisk[Zone.character] - 1); tempx++) {
           if (characx < 0) {
-            charrec = getcharc(tempx);
+            charrec = await getcharc(tempx);
 
             if (charrec.status !== Tstatus.lost) {
               if (charrec.name === charname) {

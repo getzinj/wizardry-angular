@@ -10,7 +10,7 @@ import { Zone, experienceTable } from '../data/layout/wiz-types';
 import type { ICharacter, IExperienceTable } from '../data/layout/wiz-types';
 import type { IWizardryLong } from '../data/layout/ucsd-layout';
 import { exit, withExit, withExitSync } from '../runtime/pascal-exit';
-import { disk } from '../runtime/runtime';
+import { getrec } from './diskio';
 import { CRETURN, Tattrib, Tclass, Tstatus, Xgoto, g, setspelgrp, spelgrp } from './wiz';
 import {
   addlongs, chr, copylong, getcharx, getkey, gotoxy, keyavail, newlong, ord, pause, prntlong,
@@ -149,9 +149,9 @@ async function advntinn(): Promise<void> {
     }
 
     /** CHNEWLEV. Has the character earned a level, and what happens to them if they have. */
-    function chnewlev(): void {
+    async function chnewlev(): Promise<void> {
       const who: ICharacter = g.charactr[partyx];
-      const exp2next: IExperienceTable = disk().read(Zone.experience, 0, experienceTable);
+      const exp2next: IExperienceTable = await getrec(Zone.experience, 0, experienceTable);
 
       function madelev(): void {
         function morehp(): number {
@@ -402,7 +402,7 @@ async function advntinn(): Promise<void> {
 
       gotoxy(0, 13);
       write(chr(11));
-      chnewlev();
+      await chnewlev();
       setspels();
       gotoxy(0, 23);
       write('PRESS [RETURN] TO LEAVE');

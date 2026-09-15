@@ -7,7 +7,8 @@
 import type { ICharacter, IObject } from '../data/layout/wiz-types';
 import { Zone, object } from '../data/layout/wiz-types';
 import { exit, withExit, withExitSync } from '../runtime/pascal-exit';
-import { disk, rt } from '../runtime/runtime';
+import { rt } from '../runtime/runtime';
+import { getrec } from './diskio';
 import type { ITemp04, ITenemy2 } from './combat';
 import {
   BADI, BADIAL, BADIALMA, BADIOS, DALTO, DILTO, HALITO, KATINO, LAHALITO, LORTO, MABADI, MADALTO,
@@ -83,13 +84,13 @@ export async function caction(): Promise<void> {
         let possx: number = 0;
         let objectr!: IObject;
 
-        function readobjt(): void {
-          objectr = disk().read(Zone.object,
+        async function readobjt(): Promise<void> {
+          objectr = await getrec(Zone.object,
                                 g.charactr[mycharx].possessions.items[possx - 1].objectIndex,
                                 object);
         }
 
-        function dspitems(): void {
+        async function dspitems(): Promise<void> {
           let itemcnt: number = 0;
 
           rt().display.hires.clrrect(1, 11, 38, 4);
@@ -97,7 +98,7 @@ export async function caction(): Promise<void> {
           for (possx = 1; possx <= g.charactr[mycharx].possessions.count; possx++) {
             buseable[possx] = false;
             rt().display.mvcursor(1 + (19 * ((possx - 1) % 2)), 11 + Math.trunc((possx - 1) / 2));
-            readobjt();
+            await readobjt();
 
             if (objectr.spellPower > 0) {
               if ((objectr.objectType === Tobjtype.special)
@@ -167,7 +168,7 @@ export async function caction(): Promise<void> {
           exit('USEITEM');
         }
 
-        dspitems();
+        await dspitems();
 
         do {
           await getkey();
@@ -180,7 +181,7 @@ export async function caction(): Promise<void> {
                    && (possx <= g.charactr[mycharx].possessions.count)
                    && buseable[possx]));
 
-        readobjt();
+        await readobjt();
         rt().display.hires.clrrect(13, 6, 26, 4);
         g.llbase04 = g.scntoc.spellHash[objectr.spellPower];
 

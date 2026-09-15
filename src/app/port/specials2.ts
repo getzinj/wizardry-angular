@@ -10,7 +10,8 @@ import { ENDMSG_AT, MESSAGES_PER_BLOCK, MESSAGE_BYTES } from '../data/message-re
 import { MAZE_SIZE, SquareKind, Wall, Zone, maze } from '../data/layout/wiz-types';
 import type { IMaze } from '../data/layout/wiz-types';
 import { exit, withExit, withExitSync } from '../runtime/pascal-exit';
-import { disk, rt } from '../runtime/runtime';
+import { rt } from '../runtime/runtime';
+import { findfile, getmsgblk, getrec, putrec } from './diskio';
 import { initgame, inspect } from './specials';
 import type { ITwizlong } from './wiz';
 import { CRETURN, Talign, Tattrib, Tstatus, Xgoto, blankmap, g } from './wiz';
@@ -33,7 +34,7 @@ async function spcmisc(): Promise<void> {
   const strbuff: { buff: string; endmsg: boolean } = { buff: '', endmsg: false };
 
   /** The level the party is standing on, which is the first thing SPCMISC reads. */
-  const mazeflor: IMaze = disk().read(Zone.maze, g.mazelev - 1, maze);
+  const mazeflor: IMaze = await getrec(Zone.maze, g.mazelev - 1, maze);
 
   let message: Uint8Array = new Uint8Array(512);
   let linecnt: number = 0;
@@ -54,12 +55,12 @@ async function spcmisc(): Promise<void> {
    * the end of the string land on the word that says whether this is the message's last line. That
    * overrun is how the flag is read.
    */
-  function decryptm(msgindex: number): void {
+  async function decryptm(msgindex: number): Promise<void> {
     msgblk = Math.trunc(msgindex / MESSAGES_PER_BLOCK);
     msgx = MESSAGE_BYTES * (msgindex % MESSAGES_PER_BLOCK);
 
     if (msgblk !== curmsgbl) {
-      message = disk().messageBlock(msgblk0 + msgblk);
+      message = await getmsgblk(msgblk0 + msgblk);
       curmsgbl = msgblk;
     }
 
@@ -100,7 +101,7 @@ async function spcmisc(): Promise<void> {
         linecnt = 11;
       }
 
-      decryptm(msglinex);
+      await decryptm(msglinex);
       rt().display.mvcursor(1, linecnt);
       printstr(strbuff.buff);
       msglinex = msglinex + 1;
@@ -357,7 +358,7 @@ async function spcmisc(): Promise<void> {
 
     const answer: string = await getstr(1, 13);
 
-    decryptm(aux0);
+    await decryptm(aux0);
     rt().display.hires.clrrect(1, 11, 38, 4);
     rt().display.mvcursor(1, 11);
 
@@ -439,7 +440,7 @@ async function spcmisc(): Promise<void> {
       printstr('THANKS!');
     }
 
-    decryptm(aux0);
+    await decryptm(aux0);
     fee2long();
     rt().display.hires.clrrect(1, 11, 38, 4);
     rt().display.mvcursor(1, 11);
@@ -664,8 +665,9 @@ async function spcmisc(): Promise<void> {
   rt().display.hires.clrrect(1, 11, 38, 4);
 
   // FINDFILE, which the port answers from the disk the player brought rather than by walking a
-  // directory. Block zero of the file either way, so the arithmetic below is the original's.
-  msgblk0 = disk().hasMessages ? 0 : -1;
+  // directory, though the walk is still paid for. Block zero of the file either way, so the
+  // arithmetic below is the original's.
+  msgblk0 = (await findfile()) ? 0 : -1;
 
   if (msgblk0 < 0) {
     rt().display.mvcursor(1, 11);
@@ -674,7 +676,7 @@ async function spcmisc(): Promise<void> {
   }
 
   curmsgbl = 0;
-  message = disk().messageBlock(msgblk0);
+  message = await getmsgblk(msgblk0);
   aux2 = mazeflor.argument2[bouncefl];
   aux1 = mazeflor.argument1[bouncefl];
   aux0 = mazeflor.argument0[bouncefl];
@@ -709,7 +711,7 @@ async function spcmisc(): Promise<void> {
         }
       }
 
-      disk().write(Zone.maze, g.mazelev - 1, maze, mazeflor);
+      await putrec(Zone.maze, g.mazelev - 1, maze, mazeflor);
     }
   }
 

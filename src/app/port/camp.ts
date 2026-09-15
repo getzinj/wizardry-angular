@@ -8,14 +8,14 @@
 
 import type { ICharacter, IObject } from '../data/layout/wiz-types';
 import { Zone, object } from '../data/layout/wiz-types';
-import { exit, withExit, withExitSync } from '../runtime/pascal-exit';
-import { disk } from '../runtime/runtime';
+import { exit, withExit } from '../runtime/pascal-exit';
 // The original redeclares all fifty spell numbers here and then tests fourteen of them, which are
 // the ones that do anything outside a fight. These are the same numbers COMBAT holds.
 import {
   DI, DIAL, DIALKO, DIALMA, DIOS, DUMAPIC, KADORTO, KANDI, LATUMOFI, LOMILWA, MADI, MALOR, MAPORFIC,
   MILWA,
 } from './combat';
+import { getrec } from './diskio';
 import { Tattrib, Tobjtype, Tstatus, Xgoto, g, setspelgrp, spelgrp } from './wiz';
 import {
   centstr, chr, getcharx, getkey, getline, gotoxy, int16, ord, pause2, random, write, writeln,
@@ -98,8 +98,8 @@ export function dspspels(): void {
 
 
 /** DSPITEMS. What they are carrying, two to a row, each marked with what can be done with it. */
-export function dspitems(): void {
-  withExitSync('DSPITEMS', (): void => {
+export async function dspitems(): Promise<void> {
+  await withExit('DSPITEMS', async (): Promise<void> => {
     const who: ICharacter = g.charactr[campvar.campchar];
 
     gotoxy(0, 12);
@@ -120,7 +120,7 @@ export function dspitems(): void {
       gotoxy(20 - (20 * (itemx % 2)), 14 + Math.trunc((itemx - 1) / 2));
 
       if (objids[itemx - 1] !== held.objectIndex) {
-        const objectr: IObject = disk().read(Zone.object, held.objectIndex, object);
+        const objectr: IObject = await getrec(Zone.object, held.objectIndex, object);
 
         objids[itemx - 1] = held.objectIndex;
         objnames[itemx - 1][1] = objectr.name;
@@ -475,7 +475,7 @@ export async function useitem(): Promise<void> {
 
     const held: ICharacter['possessions']['items'][number] =
       g.charactr[campvar.campchar].possessions.items[itemx - 1];
-    const theitem: IObject = disk().read(Zone.object, held.objectIndex, object);
+    const theitem: IObject = await getrec(Zone.object, held.objectIndex, object);
 
     if (theitem.spellPower === 0) {
       await exituse('POWERLESS');
@@ -537,7 +537,7 @@ export async function dropitem(): Promise<void> {
     }
 
     carried.count = carried.count - 1;
-    dspitems();
+    await dspitems();
     await exitdrop('DROPPED');
   });
 }

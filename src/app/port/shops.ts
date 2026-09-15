@@ -10,7 +10,7 @@ import { Zone, character, object } from '../data/layout/wiz-types';
 import type { ICharacter, IObject } from '../data/layout/wiz-types';
 import type { IWizardryLong } from '../data/layout/ucsd-layout';
 import { exit, withExit } from '../runtime/pascal-exit';
-import { disk } from '../runtime/runtime';
+import { getrec, putrec } from './diskio';
 import { CRETURN, Tattrib, Tstatus, Xgoto, blankchar, g } from './wiz';
 import {
   addlongs, chr, divlong, getcharx, getkey, getline, gotoxy, multlong, newlong, ord, pause2,
@@ -63,11 +63,11 @@ async function cant(): Promise<void> {
 
           let whohelpx: number = 0;
 
-          who = disk().read(Zone.character, whohelpx, character);
+          who = await getrec(Zone.character, whohelpx, character);
 
           while ((whohelpx < g.scntoc.recordsOnDisk[Zone.character]) && (disabled !== who.name)) {
             whohelpx = whohelpx + 1;
-            who = disk().read(Zone.character, whohelpx, character);
+            who = await getrec(Zone.character, whohelpx, character);
           }
 
           if (whohelpx === g.scntoc.recordsOnDisk[Zone.character]) {
@@ -133,7 +133,7 @@ async function cant(): Promise<void> {
             async function ashlost(): Promise<void> {
               who.status = (who.status === Tstatus.dead) ? Tstatus.ashes : Tstatus.lost;
               who.inMaze = false;
-              disk().write(Zone.character, whohelp, character, who);
+              await putrec(Zone.character, whohelp, character, who);
               writeln();
 
               if (who.status === Tstatus.lost) {
@@ -169,7 +169,7 @@ async function cant(): Promise<void> {
 
             who.age = who.age + (random() % 52) + 1;
             who.status = Tstatus.ok;
-            disk().write(Zone.character, whohelp, character, who);
+            await putrec(Zone.character, whohelp, character, who);
             writeln();
             await dsp2str(who.name, ' IS WELL');
           }
@@ -221,7 +221,7 @@ async function boltac(): Promise<void> {
          * start again, and anything he has none of, or that is cursed, is passed over. He is never
          * out of everything, so the search always finds something - on a real disk.
          */
-        function scrolpos(): void {
+        async function scrolpos(): Promise<void> {
           inventx = objlist[SHELF] - 1;
 
           for (let x: number = 1; x <= SHELF; x++) {
@@ -235,14 +235,14 @@ async function boltac(): Promise<void> {
                 inventx = 1;
               }
 
-              objectr = disk().read(Zone.object, inventx, object);
+              objectr = await getrec(Zone.object, inventx, object);
             } while (!((objectr.stock !== 0) && !objectr.cursed));
 
             shelfline(x, inventx);
           }
         }
 
-        function scrolneg(): void {
+        async function scrolneg(): Promise<void> {
           inventx = objlist[1] + 1;
 
           for (let x: number = SHELF; x >= 1; x--) {
@@ -256,7 +256,7 @@ async function boltac(): Promise<void> {
                 inventx = g.scntoc.recordsOnDisk[Zone.object] - 1;
               }
 
-              objectr = disk().read(Zone.object, inventx, object);
+              objectr = await getrec(Zone.object, inventx, object);
             } while (!((objectr.stock !== 0) && !objectr.cursed));
 
             shelfline(x, inventx);
@@ -288,7 +288,7 @@ async function boltac(): Promise<void> {
                 }
               } while (!((buyx > 0) && (buyx <= SHELF)));
 
-              objectr = disk().read(Zone.object, objlist[buyx], object);
+              objectr = await getrec(Zone.object, objlist[buyx], object);
 
               if (objectr.stock === 0) {
                 await aastraa('YOU BOUGHT THE LAST ONE');
@@ -329,7 +329,7 @@ async function boltac(): Promise<void> {
                 objectr.stock = objectr.stock - 1;
               }
 
-              disk().write(Zone.object, objlist[buyx], object, objectr);
+              await putrec(Zone.object, objlist[buyx], object, objectr);
 
               if (ord(g.inchar) === ord('Y')) {
                 await aastraa('ITS YOUR MONEY');
@@ -350,9 +350,9 @@ async function boltac(): Promise<void> {
           do {
             if (notpurch) {
               if (scroldir === 1) {
-                scrolpos();
+                await scrolpos();
               } else {
-                scrolneg();
+                await scrolneg();
               }
             }
 
@@ -388,7 +388,7 @@ async function boltac(): Promise<void> {
           await withExit('SELLIDUN', async (): Promise<void> => {
             let tranobjx: number = 0;
 
-            function listposs(): void {
+            async function listposs(): Promise<void> {
               gotoxy(0, 13);
               write(chr(11));
               posscnt = g.charactr[chari].possessions.count;
@@ -398,7 +398,7 @@ async function boltac(): Promise<void> {
                   g.charactr[chari].possessions.items[tranobjx - 1];
 
                 objlist[tranobjx] = held.objectIndex;
-                objectr = disk().read(Zone.object, objlist[tranobjx], object);
+                objectr = await getrec(Zone.object, objlist[tranobjx], object);
                 write([ tranobjx, 1 ], chr(41),
                       [ held.identified ? objectr.name : objectr.unidentifiedName, 15 ], ' ');
                 divlong(objectr.price, halfpric);
@@ -426,7 +426,7 @@ async function boltac(): Promise<void> {
                 const held: ICharacter['possessions']['items'][number] =
                   g.charactr[chari].possessions.items[tranobjx - 1];
 
-                objectr = disk().read(Zone.object, objlist[tranobjx], object);
+                objectr = await getrec(Zone.object, objlist[tranobjx], object);
                 divlong(objectr.price, halfpric);
 
                 if (action === SELL) {
@@ -473,7 +473,7 @@ async function boltac(): Promise<void> {
                   }
 
                   carried.count = carried.count - 1;
-                  objectr = disk().read(Zone.object, objlist[tranobjx], object);
+                  objectr = await getrec(Zone.object, objlist[tranobjx], object);
 
                   if (action === SELL) {
                     if (objectr.stock > -1) {
@@ -481,15 +481,15 @@ async function boltac(): Promise<void> {
                     }
                   }
 
-                  disk().write(Zone.object, objlist[tranobjx], object, objectr);
+                  await putrec(Zone.object, objlist[tranobjx], object, objectr);
                 }
 
                 await centstr('** ANYTHING ELSE, SIRE? **');
-                listposs();
+                await listposs();
               });
             }
 
-            listposs();
+            await listposs();
 
             for (;;) {
               if (posscnt === 0) {

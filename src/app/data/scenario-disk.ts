@@ -1,8 +1,18 @@
+import type { IDriveActivity } from './block-cache-model';
+import { BlockCacheModel, NO_ACTIVITY } from './block-cache-model';
 import type { ILayout } from './layout/ucsd-layout';
 import type { Zone } from './layout/wiz-types';
 import { scenarioToc } from './layout/wiz-types';
 
 export const BLOCK_SIZE: number = 512;
+
+
+interface IRecordAddress {
+  /** The first block of the pair the record lies in. */
+  readonly pair: number;
+  /** The record's byte offset within the file. */
+  readonly at: number;
+}
 
 /**
  * The scenario file, addressed the way the game addresses it.
@@ -13,9 +23,9 @@ export const BLOCK_SIZE: number = 512;
  * big a record is. Keeping that arithmetic means a record lands where the game expects even where
  * the packing looks odd, such as the thirteen items that fit a pair with bytes to spare.
  *
- * The whole file is small enough to hold in memory, so reads need no cache. Writes will: the game
- * keeps a dirty pair and only flushes it when another pair is needed, which is why saving is
- * bound up with reading something else.
+ * The whole file is small enough to hold in memory, so reads need no cache. The original's cache
+ * is still kept, in `drive`, without its bytes: it is what decided when the disk drive moved, and
+ * every read and write here says through `lastActivity` whether it would have.
  */
 export class ScenarioDisk {
   public readonly toc: ReturnType<typeof scenarioToc.read>;
@@ -33,6 +43,12 @@ export class ScenarioDisk {
    * "get it down now" is said here.
    */
   public onChanged: (() => void) | null = null;
+
+  /** The original's block-pair cache, kept only to say when the drive would have moved. */
+  public readonly drive: BlockCacheModel = new BlockCacheModel();
+
+  /** What the drive did for the most recent read or write. */
+  public lastActivity: IDriveActivity = NO_ACTIVITY;
 
 
   /**
@@ -64,6 +80,8 @@ export class ScenarioDisk {
   public messageBlock(block: number): Uint8Array {
     const bytes: Uint8Array = new Uint8Array(BLOCK_SIZE);
 
+    this.lastActivity = this.drive.rawRead();
+
     if (this.messages !== null) {
       const start: number = block * BLOCK_SIZE;
 
@@ -91,7 +109,11 @@ export class ScenarioDisk {
 
   /** Reads one record, as the game does by copying out of its block buffer. */
   public read<T>(zone: Zone, index: number, layout: ILayout<T>): T {
-    return layout.read(this.bytes, this.recordOffset(zone, index, layout.size));
+    const { pair, at }: IRecordAddress = this.recordAddress(zone, index, layout.size);
+
+    this.lastActivity = this.drive.access(pair, false);
+
+    return layout.read(this.bytes, at);
   }
 
 
@@ -101,12 +123,15 @@ export class ScenarioDisk {
    *
    * The original marked the block pair dirty and only wrote it out when it next needed the buffer
    * for something else, which is why its code is dotted with reads of records it does not want,
-   * purely to force the write. Holding the whole scenario in memory removes the buffer and so
-   * removes the need for those: the change lands here, and `changed` tells whoever owns the disk
-   * that it is worth writing to storage.
+   * purely to force the write. Holding the whole scenario in memory means the change lands here
+   * at once, and `changed` tells whoever owns the disk that it is worth writing to storage; the
+   * dirty pair lives on only in `drive`, where it decides when the write is paid for.
    */
   public write<T>(zone: Zone, index: number, layout: ILayout<T>, value: T): void {
-    layout.write(this.bytes, this.recordOffset(zone, index, layout.size), value);
+    const { pair, at }: IRecordAddress = this.recordAddress(zone, index, layout.size);
+
+    this.lastActivity = this.drive.access(pair, true);
+    layout.write(this.bytes, at, value);
     this.touched();
   }
 
@@ -121,8 +146,9 @@ export class ScenarioDisk {
    * before them.
    */
   public fillchar<T>(zone: Zone, index: number, layout: ILayout<T>): void {
-    const at: number = this.recordOffset(zone, index, layout.size);
+    const { pair, at }: IRecordAddress = this.recordAddress(zone, index, layout.size);
 
+    this.lastActivity = this.drive.access(pair, true);
     this.bytes.fill(0, at, at + layout.size);
     this.touched();
   }
@@ -140,7 +166,9 @@ export class ScenarioDisk {
    * along it; this hands back the record's bytes for the caller to walk along instead.
    */
   public readRecord(zone: Zone, index: number, size: number): Uint8Array {
-    const at: number = this.recordOffset(zone, index, size);
+    const { pair, at }: IRecordAddress = this.recordAddress(zone, index, size);
+
+    this.lastActivity = this.drive.access(pair, false);
 
     return this.bytes.slice(at, at + size);
   }
@@ -149,6 +177,8 @@ export class ScenarioDisk {
   /** A whole block, for the things stored as raw bytes: the fonts and the pictures. */
   public readBlock(blockWithinFile: number): Uint8Array {
     const start: number = blockWithinFile * BLOCK_SIZE;
+
+    this.lastActivity = this.drive.rawRead();
 
     return this.bytes.slice(start, start + BLOCK_SIZE);
   }
@@ -164,15 +194,15 @@ export class ScenarioDisk {
    * the end of a typed array is silently dropped, so a save could report success having written
    * nothing at all. That is refused instead.
    */
-  private recordOffset(zone: Zone, index: number, recordSize: number): number {
+  private recordAddress(zone: Zone, index: number, recordSize: number): IRecordAddress {
     const perPair: number = this.toc.recordsPerBlockPair[zone];
     const pair: number = this.toc.blockOffset[zone] + (2 * Math.trunc(index / perPair));
-    const offset: number = (pair * BLOCK_SIZE) + (recordSize * (index % perPair));
+    const at: number = (pair * BLOCK_SIZE) + (recordSize * (index % perPair));
 
-    if ((offset < 0) || ((offset + recordSize) > this.bytes.length)) {
+    if ((at < 0) || ((at + recordSize) > this.bytes.length)) {
       throw new RangeError(`record ${ index } of zone ${ zone } lies outside the scenario`);
     } else {
-      return offset;
+      return { pair, at };
     }
   }
 

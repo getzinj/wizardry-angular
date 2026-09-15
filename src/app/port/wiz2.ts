@@ -8,6 +8,7 @@
 import { rt } from '../runtime/runtime';
 import { exit, withExitSync } from '../runtime/pascal-exit';
 import { BELL, RETURN } from '../runtime/text-screen';
+import { MOTOR_TIMEOUT_MILLISECONDS, restdrive } from './diskio';
 import { CRETURN, g } from './wiz';
 import type { ITwizlong } from './wiz';
 
@@ -106,6 +107,10 @@ export function unitclear(): void {
  * stirring the random number; Keyboard.getkey does both.
  */
 export async function getkey(): Promise<string> {
+  if (!keyavail()) {
+    restdrive();
+  }
+
   g.inchar = await rt().keyboard.getkey();
 
   return g.inchar;
@@ -114,6 +119,10 @@ export async function getkey(): Promise<string> {
 
 /** READ( INCHAR). A key, without the wait that stirs the random number. */
 export async function read(): Promise<string> {
+  if (!keyavail()) {
+    restdrive();
+  }
+
   g.inchar = await rt().keyboard.read();
 
   return g.inchar;
@@ -202,7 +211,13 @@ export async function getcharx(dspnames: boolean, solicit: string): Promise<numb
 
 /** An empty FOR loop of this many passes on the real machine, which is how the game paced itself. */
 export async function pause(passes: number): Promise<void> {
-  await rt().clock.sleep(passes * MILLISECONDS_PER_LOOP);
+  const milliseconds: number = passes * MILLISECONDS_PER_LOOP;
+
+  await rt().clock.sleep(milliseconds);
+
+  if (milliseconds >= MOTOR_TIMEOUT_MILLISECONDS) {
+    restdrive();
+  }
 }
 
 
