@@ -67,9 +67,9 @@ function loadStoredPaletteName(): string {
       <div class="controls">
         <label>
           Monitor
-          <select [value]="paletteName()" (change)="choosePalette($event)">
+          <select (change)="choosePalette($event)">
             @for (option of paletteOptions; track option.name) {
-              <option [value]="option.name">{{ option.name }}</option>
+              <option [value]="option.name" [selected]="option.name === paletteName()">{{ option.name }}</option>
             }
           </select>
         </label>
