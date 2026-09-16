@@ -27,7 +27,7 @@ jobs:
 
       - run: npm ci
 
-      - run: npx ng build --configuration production --base-href /wizardry-angular/
+      - run: npx ng build --configuration production
 
       - uses: actions/upload-pages-artifact@v3
         with:
