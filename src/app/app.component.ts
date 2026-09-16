@@ -33,7 +33,13 @@ const PALETTE_STORAGE_KEY: string = 'wiz-palette';
 
 
 function loadStoredPaletteName(): string {
-  const stored: string | null = localStorage.getItem(PALETTE_STORAGE_KEY);
+  let stored: string | null;
+
+  try {
+    stored = localStorage.getItem(PALETTE_STORAGE_KEY);
+  } catch {
+    stored = null;
+  }
 
   if ((stored !== null) && APPLE_PALETTES.some((palette: IApplePalette): boolean => palette.name === stored)) {
     return stored;
@@ -257,7 +263,12 @@ export class AppComponent {
 
     this.paletteName.set(name);
     this.display.dirty = true;
-    localStorage.setItem(PALETTE_STORAGE_KEY, name);
+
+    try {
+      localStorage.setItem(PALETTE_STORAGE_KEY, name);
+    } catch {
+      // Not remembering the choice is better than refusing to apply it.
+    }
   }
 
 
