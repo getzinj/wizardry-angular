@@ -28,6 +28,20 @@ import { ScenarioImportComponent } from './ui/scenario-import.component';
  */
 const SAVE_DELAY: number = 0;
 
+/** Where the player's monitor choice is kept, so it is still selected next time they visit. */
+const PALETTE_STORAGE_KEY: string = 'wiz-palette';
+
+
+function loadStoredPaletteName(): string {
+  const stored: string | null = localStorage.getItem(PALETTE_STORAGE_KEY);
+
+  if ((stored !== null) && APPLE_PALETTES.some((palette: IApplePalette): boolean => palette.name === stored)) {
+    return stored;
+  } else {
+    return APPLE_PALETTES[0].name;
+  }
+}
+
 
 @Component({
   selector: 'wiz-root',
@@ -130,7 +144,7 @@ export class AppComponent {
   public readonly paletteOptions: readonly IApplePalette[] = APPLE_PALETTES;
   public readonly diskLimit: number = MAXIMUM_SAVE_DISKS;
 
-  public readonly paletteName = signal<string>(APPLE_PALETTES[0].name);
+  public readonly paletteName = signal<string>(loadStoredPaletteName());
   public readonly palette = computed<IApplePalette>((): IApplePalette => paletteByName(this.paletteName()));
 
   /** False until the browser has been asked what it holds, so no screen flashes up first. */
@@ -239,8 +253,11 @@ export class AppComponent {
 
 
   public choosePalette(event: Event): void {
-    this.paletteName.set((event.target as HTMLSelectElement).value);
+    const name: string = (event.target as HTMLSelectElement).value;
+
+    this.paletteName.set(name);
     this.display.dirty = true;
+    localStorage.setItem(PALETTE_STORAGE_KEY, name);
   }
 
 
