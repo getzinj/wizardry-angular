@@ -91,6 +91,16 @@ command line, without opening a browser:
 npm run inspect-dsk -- --dsk <path to disk image>
 ```
 
+## Credit
+
+This port is only possible because **Thomas William Ewers** reverse-engineered the original
+Apple II `WIZARDRY.CODE`/`SYSTEM.STARTUP` back into compilable UCSD Pascal and assembler source
+around 2012-2014, published at [zimlab.com/wizardry](https://www.zimlab.com/wizardry). The
+`src/app/port/` layer is a direct, file-by-file port of that reverse-engineered Pascal source.
+
+[snafaru/Wizardry.Code](https://github.com/snafaru/Wizardry.Code) builds further gameplay fixes
+on top of Ewers' baseline and was also consulted.
+
 ## License
 
 Licensed under the [GNU General Public License v3.0](./LICENSE) or later. This covers the
