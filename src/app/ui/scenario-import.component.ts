@@ -30,6 +30,12 @@ import { importScenarioDisk } from '../data/scenario-import';
         or choose the file.
       </p>
 
+      <p class="which">
+        Wizardry came on two floppies and they look alike. The boot disk is the one that started
+        the machine; the scenario disk is the one holding the game itself. It is the second one
+        that is wanted here.
+      </p>
+
       <label class="choose">
         <input type="file" accept=".dsk,.po,.do,.image" (change)="onChoose($event)">
         <span>Choose a disk image</span>
@@ -47,6 +53,20 @@ import { importScenarioDisk } from '../data/scenario-import';
           }
         </div>
       }
+
+      <details class="what">
+        <summary>What file do I need?</summary>
+        <p>
+          A plain sector image of a 5.25&Prime; floppy: 143,360 bytes, named
+          <code>.dsk</code>, <code>.do</code>, <code>.po</code> or <code>.image</code>. Either
+          sector order will do &mdash; which one it is gets worked out from the disk.
+        </p>
+        <p>
+          The volume is an Apple Pascal one, and the file that matters on it is
+          <code>SCENARIO.DATA</code>. If the image is a <code>2MG</code> or a <code>WOZ</code>,
+          convert it to a plain sector image first.
+        </p>
+      </details>
 
       <p class="note">
         The disk stays in this browser. Nothing is uploaded.
@@ -123,6 +143,29 @@ import { importScenarioDisk } from '../data/scenario-import';
 
     .failure p {
       margin: 0.35rem 0;
+    }
+
+    .which {
+      color: #999;
+      font-size: 0.85rem;
+      line-height: 1.6;
+    }
+
+    .what {
+      margin: 1.5rem 0;
+      text-align: left;
+      color: #999;
+      font-size: 0.8rem;
+      line-height: 1.6;
+    }
+
+    .what summary {
+      color: #bbb;
+      cursor: pointer;
+    }
+
+    .what code {
+      color: #00cc44;
     }
 
     .note {
