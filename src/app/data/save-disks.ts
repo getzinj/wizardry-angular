@@ -166,7 +166,7 @@ export class SaveDiskLibrary {
       return {
         ok: false,
         reason: 'full',
-        message: `There is room for ${ this.limit } save disks. Delete one to make another.`,
+        message: `There is room for ${ this.limit } character disks. Delete one to make another.`,
       };
     } else {
       const now: number = Date.now();

@@ -287,7 +287,7 @@ export class AppComponent {
     this.restoreFailure.set(null);
 
     if (await this.library.isFull()) {
-      this.restoreFailure.set(`There is room for ${ this.diskLimit } save disks. Discard one first.`);
+      this.restoreFailure.set(`There is room for ${ this.diskLimit } character disks. Discard one first.`);
     } else {
       const result: ScenarioImportResult = importScenarioDisk(new Uint8Array(await file.arrayBuffer()));
 

@@ -57,9 +57,10 @@ import { importScenarioDisk } from '../data/scenario-import';
       <details class="what">
         <summary>What file do I need?</summary>
         <p>
-          A plain sector image of a 5.25&Prime; floppy: 143,360 bytes, named
-          <code>.dsk</code>, <code>.do</code>, <code>.po</code> or <code>.image</code>. Either
-          sector order will do &mdash; which one it is gets worked out from the disk.
+          A plain sector image, named <code>.dsk</code>, <code>.do</code>, <code>.po</code> or
+          <code>.image</code>. A 5.25&Prime; floppy is 143,360 bytes; a larger image is fine so
+          long as it is a whole number of 512-byte blocks. Either sector order will do &mdash;
+          which one it is gets worked out from the disk.
         </p>
         <p>
           The volume is an Apple Pascal one, and the file that matters on it is
