@@ -20,6 +20,9 @@ import type { IRuntime } from './runtime/runtime';
 import { AppleScreenComponent } from './ui/apple-screen.component';
 import { SaveDiskPickerComponent } from './ui/save-disk-picker.component';
 import { ScenarioImportComponent } from './ui/scenario-import.component';
+import { StartupStepsComponent } from './ui/startup-steps.component';
+import type { IStartupProgress } from './ui/startup-steps';
+import { StartupStep, currentStep } from './ui/startup-steps';
 
 /**
  * How long a write waits before the disk is put to storage, in milliseconds. Long enough that a
@@ -30,6 +33,9 @@ const SAVE_DELAY: number = 0;
 
 /** Where the player's monitor choice is kept, so it is still selected next time they visit. */
 const PALETTE_STORAGE_KEY: string = 'wiz-palette';
+
+/** Set once the player has said they do not need the getting-started steps any more. */
+const STEPS_HIDDEN_STORAGE_KEY: string = 'wiz-steps-hidden';
 
 
 function loadStoredPaletteName(): string {
@@ -49,10 +55,19 @@ function loadStoredPaletteName(): string {
 }
 
 
+function loadStepsHidden(): boolean {
+  try {
+    return localStorage.getItem(STEPS_HIDDEN_STORAGE_KEY) !== null;
+  } catch {
+    return false;
+  }
+}
+
+
 @Component({
   selector: 'wiz-root',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AppleScreenComponent, SaveDiskPickerComponent, ScenarioImportComponent],
+  imports: [AppleScreenComponent, SaveDiskPickerComponent, ScenarioImportComponent, StartupStepsComponent],
   host: {
     '(window:keydown)': 'onKey($event)',
     '(document:visibilitychange)': 'onLeaving()',
@@ -78,19 +93,31 @@ function loadStoredPaletteName(): string {
         <button type="button" (click)="putTheDiskAway()">{{ diskName() }} &mdash; change disk</button>
       </div>
     } @else if (master(); as files) {
-      <wiz-save-disk-picker [disks]="disks()"
-                            [gameName]="files.summary.gameName"
-                            [limit]="diskLimit"
-                            (played)="onPlay($event)"
-                            (created)="onCreate($event)"
-                            (discarded)="onDiscard($event)"
-                            (renamed)="onRename($event)"
-                            (exported)="onExport($event)"
-                            (restored)="onRestore($event)"
-                            [restoreFailure]="restoreFailure()"
-                            (reimported)="onUseAnotherScenario()" />
+      <div class="startup">
+        @if (showSteps()) {
+          <wiz-startup-steps [progress]="progress()" (dismissed)="hideSteps()" />
+        }
+
+        <wiz-save-disk-picker [disks]="disks()"
+                              [gameName]="files.summary.gameName"
+                              [limit]="diskLimit"
+                              (played)="onPlay($event)"
+                              (created)="onCreate($event)"
+                              (discarded)="onDiscard($event)"
+                              (renamed)="onRename($event)"
+                              (exported)="onExport($event)"
+                              (restored)="onRestore($event)"
+                              [restoreFailure]="restoreFailure()"
+                              (reimported)="onUseAnotherScenario()" />
+      </div>
     } @else if (ready()) {
-      <wiz-scenario-import (imported)="onImported($event)" />
+      <div class="startup">
+        @if (showSteps()) {
+          <wiz-startup-steps [progress]="progress()" (dismissed)="hideSteps()" />
+        }
+
+        <wiz-scenario-import (imported)="onImported($event)" />
+      </div>
     }
   `,
   styles: [`
@@ -102,6 +129,20 @@ function loadStoredPaletteName(): string {
 
     .screen {
       min-height: 0;
+    }
+
+    /**
+     * The pre-game screens take the whole window, not just the row the maze would use, and scroll
+     * when the steps and a full shelf together outrun it.
+     */
+    .startup {
+      grid-row: 1 / -1;
+      display: grid;
+      /* Safe centring: overflowing content starts at the top, where it can still be scrolled to. */
+      align-content: safe center;
+      justify-items: center;
+      overflow-y: auto;
+      padding: 1rem;
     }
 
     .controls {
@@ -169,6 +210,23 @@ export class AppComponent {
 
   public readonly diskName = signal<string>('');
 
+  /** Whether the player has asked not to be shown the getting-started steps again. */
+  public readonly stepsHidden = signal<boolean>(loadStepsHidden());
+
+  public readonly progress = computed<IStartupProgress>((): IStartupProgress => ({
+    hasMaster: this.master() !== null,
+    diskCount: this.disks().length,
+    // The same reading of the two stamps the shelf makes when it says 'never played'.
+    everPlayed: this.disks().some((disk: ISaveDiskSummary): boolean => disk.playedAt !== disk.createdAt),
+  }));
+
+  /**
+   * The steps stand down of their own accord once the player has played, so someone coming back to
+   * a shelf they already know is not told again how to use it.
+   */
+  public readonly showSteps = computed<boolean>((): boolean =>
+    !this.stepsHidden() && (currentStep(this.progress()) !== StartupStep.done));
+
   private readonly library: SaveDiskLibrary = new SaveDiskLibrary(new BrowserSaveDiskStore());
   private inDrive: ISaveDisk | null = null;
   private machine: IRuntime | null = null;
@@ -229,7 +287,7 @@ export class AppComponent {
     this.restoreFailure.set(null);
 
     if (await this.library.isFull()) {
-      this.restoreFailure.set(`There is room for ${ this.diskLimit } save disks. Discard one first.`);
+      this.restoreFailure.set(`There is room for ${ this.diskLimit } character disks. Discard one first.`);
     } else {
       const result: ScenarioImportResult = importScenarioDisk(new Uint8Array(await file.arrayBuffer()));
 
@@ -255,6 +313,17 @@ export class AppComponent {
 
   public putTheDiskAway(): void {
     void this.stopPlaying();
+  }
+
+
+  public hideSteps(): void {
+    this.stepsHidden.set(true);
+
+    try {
+      localStorage.setItem(STEPS_HIDDEN_STORAGE_KEY, 'yes');
+    } catch {
+      // Not remembering is better than refusing to hide them now.
+    }
   }
 
 

@@ -4,7 +4,7 @@ import type { ISaveDiskSummary } from '../data/save-disks';
 
 
 /**
- * The shelf of save disks, and the choice of which to play.
+ * The shelf of character disks, and the choice of which to play.
  *
  * The game had no save files: your characters lived on the scenario disk, which it wrote to as you
  * played. Players kept a master untouched and played on copies. Keeping that shape means a save is
@@ -16,11 +16,14 @@ import type { ISaveDiskSummary } from '../data/save-disks';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="panel">
-      <h1>Save disks</h1>
+      <h1>Character disks</h1>
       <p class="lead">{{ gameName() }}</p>
 
       @if (disks().length === 0) {
-        <p class="empty">No save disks yet. Make one from your master and start playing.</p>
+        <p class="empty">
+          No character disks yet. Make one from your master and start playing. Your characters are
+          written onto it as you go, which is why you play on a copy and the master stays as it is.
+        </p>
       } @else {
         <ul>
           @for (disk of disks(); track disk.id) {
@@ -41,22 +44,22 @@ import type { ISaveDiskSummary } from '../data/save-disks';
 
       @if (full()) {
         <p class="note">
-          There is room for {{ limit() }} disks. Discard one to make another.
+          There is room for {{ limit() }} character disks. Discard one to make another.
         </p>
       } @else {
         <div class="new">
           <input type="text"
-                 aria-label="Name for the new disk"
+                 aria-label="Name for the new character disk"
                  [value]="newName()"
                  (input)="newName.set(asValue($event))">
-          <button type="button" (click)="created.emit(newName())">Make a new disk</button>
+          <button type="button" (click)="created.emit(newName())">Make a new character disk</button>
         </div>
       }
 
       <div class="restore">
         <label>
           <input type="file" accept=".dsk,.po,.do,.image" (change)="onRestore($event)">
-          <span>Import a save disk</span>
+          <span>Import a character disk</span>
         </label>
         <p class="hint">An exported disk is an ordinary disk image, so it can be kept anywhere.</p>
       </div>
